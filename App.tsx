@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameState, Memory, BackgroundTheme } from './types';
 import { MEMORIES, GAME_SPEED, CHECKPOINT_DISTANCE } from './constants';
-import { PixelCharacter, PixelFlower } from './PixelCharacter';
-import { generateLoveLetter } from './geminiService';
+import { PixelCharacter, PixelFlower } from '.PixelCharacter';
+import { generateLoveLetter } from '.geminiService';
 
 // --- SOUND ENGINE (Web Audio API) ---
 class SoundEngine {
@@ -130,6 +130,8 @@ const App: React.FC = () => {
   const [bgOffset, setBgOffset] = useState(0);
   const [failReason, setFailReason] = useState("");
   const [currentTheme, setCurrentTheme] = useState<BackgroundTheme>('default');
+  const [selectedCorrectOption, setSelectedCorrectOption] = useState<'A' | 'B' | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Refs for animation loop
   const requestRef = useRef<number>(0);
@@ -147,10 +149,12 @@ const App: React.FC = () => {
     setIsBoyVisible(true);
     setBgOffset(0);
     setCurrentTheme(MEMORIES[0].theme);
+    setSelectedCorrectOption(null);
+    setToastMessage(null);
   };
 
   const handleCorrectChoice = () => {
-    soundEngine.playCorrect();
+    // Sound played in handleOptionClick
     setGameState(GameState.WALKING);
     const nextIndex = currentMemoryIndex + 1;
     
@@ -172,6 +176,39 @@ const App: React.FC = () => {
     soundEngine.stopMusic();
     setFailReason(reason);
     setGameState(GameState.GAME_OVER);
+  };
+
+  const handleOptionClick = (option: 'A' | 'B', memory: Memory) => {
+    if (selectedCorrectOption) return; // Prevent double clicks
+
+    // Special logic for Memory #8 (The future date)
+    if (memory.id === 8 && option === 'B') {
+      soundEngine.playCorrect(); // Play good sound anyway
+      setSelectedCorrectOption('B'); // Select B to turn it "green" visually
+      setToastMessage(memory.failMessage); // Show "Aile varrrr"
+      
+      // Continue anyway after 2 seconds
+      setTimeout(() => {
+        setToastMessage(null);
+        handleCorrectChoice();
+        setSelectedCorrectOption(null);
+      }, 2000);
+      return;
+    }
+
+    const isCorrect = memory.correctOption === option;
+
+    if (isCorrect) {
+      soundEngine.playCorrect();
+      setSelectedCorrectOption(option);
+      // Delay to show animation
+      setTimeout(() => {
+        handleCorrectChoice();
+        setSelectedCorrectOption(null);
+      }, 1500);
+    } else {
+      handleWrongChoice(memory.failMessage);
+    }
   };
 
   const handleVictory = useCallback(async () => {
@@ -264,6 +301,9 @@ const App: React.FC = () => {
   const renderQuestion = () => {
     const memory = MEMORIES[currentMemoryIndex];
     if (!memory) return null;
+
+    const isSelected = (opt: 'A' | 'B') => selectedCorrectOption === opt;
+
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-start pt-20 z-40 font-pixel">
         <div className="bg-white/95 border-4 border-gray-800 p-6 rounded-xl shadow-2xl max-w-2xl w-full mx-4 text-center transform hover:scale-105 transition-transform duration-300">
@@ -274,12 +314,42 @@ const App: React.FC = () => {
             {memory.question}
           </h3>
           <div className="flex flex-col md:flex-row gap-6 justify-center w-full">
-            <button onClick={() => memory.correctOption === 'A' ? handleCorrectChoice() : handleWrongChoice(memory.failMessage)} className="flex-1 py-6 px-6 bg-blue-50 hover:bg-blue-100 border-b-4 border-blue-300 rounded-lg text-blue-900 transition-all text-sm md:text-base">
+            <button 
+              onClick={() => handleOptionClick('A', memory)} 
+              disabled={!!selectedCorrectOption}
+              className={`flex-1 py-6 px-6 rounded-lg transition-all duration-300 text-sm md:text-base relative border-b-4
+                ${isSelected('A') 
+                  ? 'bg-green-100 border-green-500 text-green-900 scale-105 shadow-[0_0_20px_rgba(74,222,128,0.5)]' 
+                  : 'bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-900'
+                }
+              `}
+            >
               {memory.optionA}
+              {isSelected('A') && (
+                <div className="absolute -top-6 -right-2 flex gap-2 animate-bounce z-50">
+                    <span className="text-2xl filter drop-shadow-md">✨</span>
+                    <span className="text-2xl filter drop-shadow-md delay-75">💖</span>
+                </div>
+              )}
             </button>
             <div className="flex items-center justify-center text-gray-400 font-bold text-xl">VS</div>
-            <button onClick={() => memory.correctOption === 'B' ? handleCorrectChoice() : handleWrongChoice(memory.failMessage)} className="flex-1 py-6 px-6 bg-pink-50 hover:bg-pink-100 border-b-4 border-pink-300 rounded-lg text-pink-900 transition-all text-sm md:text-base">
+            <button 
+              onClick={() => handleOptionClick('B', memory)} 
+              disabled={!!selectedCorrectOption}
+              className={`flex-1 py-6 px-6 rounded-lg transition-all duration-300 text-sm md:text-base relative border-b-4
+                ${isSelected('B') 
+                  ? 'bg-green-100 border-green-500 text-green-900 scale-105 shadow-[0_0_20px_rgba(74,222,128,0.5)]' 
+                  : 'bg-pink-50 hover:bg-pink-100 border-pink-300 text-pink-900'
+                }
+              `}
+            >
               {memory.optionB}
+              {isSelected('B') && (
+                <div className="absolute -top-6 -right-2 flex gap-2 animate-bounce z-50">
+                    <span className="text-2xl filter drop-shadow-md">✨</span>
+                    <span className="text-2xl filter drop-shadow-md delay-75">💖</span>
+                </div>
+              )}
             </button>
           </div>
         </div>
@@ -317,6 +387,9 @@ const App: React.FC = () => {
          
          {/* Boy walking in animation */}
          <div className="absolute right-0 animate-[slideIn_3s_ease-out_forwards] flex flex-col items-center">
+             <div className="mb-4 bg-white text-black p-2 rounded-lg border-2 border-pink-500 font-bold text-xs shadow-lg animate-bounce whitespace-nowrap z-30">
+                Bakk zambaklarını getirdimmm
+             </div>
              <div className="mb-[-10px] z-20 animate-pulse">
                 <PixelFlower scale={5} />
              </div>
@@ -353,6 +426,15 @@ const App: React.FC = () => {
   return (
     <div className={`relative w-full h-screen overflow-hidden transition-colors duration-1000 select-none ${styles.bg}`}>
       
+      {/* Toast Message (for special memory fail) */}
+      {toastMessage && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-[60] animate-bounce">
+          <div className="bg-white border-4 border-pink-500 text-pink-600 px-6 py-3 rounded-xl font-pixel shadow-2xl text-xl font-bold">
+             {toastMessage}
+          </div>
+        </div>
+      )}
+
       {/* --- BACKGROUND LAYERS --- */}
       
       {/* Sky Objects */}
@@ -438,6 +520,9 @@ const App: React.FC = () => {
       {gameState === GameState.WALKING_ALONE && (
          <div className="absolute bottom-32 transition-all duration-100 z-20" style={{ right: `${Math.max(100, ((MEMORIES.length + 1) * CHECKPOINT_DISTANCE + 600) - distance + 100)}px` }}>
             <div className="flex flex-col items-center">
+                <div className="mb-2 bg-white text-black p-2 rounded-lg border-2 border-pink-500 font-bold text-xs shadow-lg animate-bounce whitespace-nowrap z-30">
+                   Bakk zambaklarını getirdimmm
+                </div>
                 <div className="animate-pulse mb-[-10px] z-10"><PixelFlower scale={3} /></div>
                 <PixelCharacter type="boy" isWalking={false} scale={3} pose="holding_flowers" />
             </div>
