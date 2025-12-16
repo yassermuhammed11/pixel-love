@@ -66,5 +66,14 @@ export const MEMORIES: Memory[] = [
     correctOption: 'B',
     failMessage: "Teacher mode on! İngilizce dersiydi.",
     theme: 'school'
+  },
+  {
+    id: 8,
+    question: "Perşembe 11 Aralık 2025, o gün ne olduğunu hatırlıyor musun? ;)",
+    optionA: "Evetttt",
+    optionB: "Hatırlat benii",
+    correctOption: 'A', // Technically A is correct, but B will have special handling in App.tsx
+    failMessage: "Aile varrrr", // Used for the toast message
+    theme: 'night'
   }
 ];
