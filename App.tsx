@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameState, Memory, BackgroundTheme } from './types';
 import { MEMORIES, GAME_SPEED, CHECKPOINT_DISTANCE } from './constants';
 import { PixelCharacter, PixelFlower } from './Player';
-import { generateLoveLetter } from '.geminiService';
+import { generateLoveLetter } from './geminiService';
 
 // --- SOUND ENGINE (Web Audio API) ---
 class SoundEngine {
